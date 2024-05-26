@@ -193,11 +193,15 @@ class SimpleRoot(resource.Resource, log.LogAble):
 class WebServer(log.LogAble):
     logCategory = 'webserver'
 
-    def __init__(self, ui, port, coherence):
+    def __init__(self, ui, port, coherence, ipv6=False):
         log.LogAble.__init__(self)
         self.site = Site(SimpleRoot(coherence))
 
-        self.endpoint = endpoints.TCP4ServerEndpoint(reactor, port)
+        if ipv6:
+            self.endpoint = endpoints.TCP6ServerEndpoint(reactor, port)
+        else:
+            self.endpoint = endpoints.TCP4ServerEndpoint(reactor, port)
+
         self._endpoint_listen(coherence, port)
 
     def _endpoint_listen(self, coherence, port):
@@ -334,9 +338,9 @@ class Plugins(log.LogAble):
             try:
                 plugin = plugin.resolve()
             except (
-                ImportError,
-                AttributeError,
-                pkg_resources.ResolutionError,
+                    ImportError,
+                    AttributeError,
+                    pkg_resources.ResolutionError,
             ) as msg:
                 self.warning(
                     f'Can\'t load plugin {plugin.name} ({msg}), '
@@ -518,6 +522,9 @@ class Coherence(EventDispatcher, log.LogAble):
 
         self.setup_logger()
 
+        # ipv6 conf option
+        self.use_ipv6 = True if int(config.get('ipv6', 0)) == 1 else False
+
         self.setup_hostname()
         if self.hostname.startswith('127.'):
             # use interface detection via routing table as last resort
@@ -608,7 +615,7 @@ class Coherence(EventDispatcher, log.LogAble):
         '''
         network_if = self.config.get('interface')
         if network_if:
-            self.hostname = get_ip_address(f'{network_if}')
+            self.hostname = get_ip_address(f'{network_if}', ipv6=self.use_ipv6)
         else:
             try:
                 self.hostname = socket.gethostbyname(socket.gethostname())
@@ -630,7 +637,7 @@ class Coherence(EventDispatcher, log.LogAble):
         '''Initialize the :class:`~coherence.upnp.core.ssdp.SSDPServer`.'''
         try:
             # TODO: add ip/interface bind
-            self.ssdp_server = SSDPServer(test=self.is_unittest)
+            self.ssdp_server = SSDPServer(test=self.is_unittest, ipv6=self.use_ipv6)
         except CannotListenError as err:
             self.error(f'Error starting the SSDP-server: {err}')
             self.debug('Error starting the SSDP-server', exc_info=True)
@@ -653,7 +660,7 @@ class Coherence(EventDispatcher, log.LogAble):
         try:
             # TODO: add ip/interface bind
             if self.config.get('web-ui', 'no') != 'yes':
-                self.web_server = WebServer(None, self.web_server_port, self)
+                self.web_server = WebServer(None, self.web_server_port, self, ipv6=self.use_ipv6)
             else:
                 self.web_server = WebServerUi(
                     self.web_server_port, self, unittests=self.is_unittest
@@ -665,10 +672,15 @@ class Coherence(EventDispatcher, log.LogAble):
             reactor.stop()
             return
 
-        self.urlbase = f'http://{self.hostname}:{self.web_server_port:d}/'
-        self.external_address = ':'.join(
-            (self.hostname, str(self.web_server_port))
-        )
+        # treat hostnames with : as ipv6 address
+        if self.use_ipv6 and ":" in self.hostname:
+            self.urlbase = f'http://[{self.hostname}]:{self.web_server_port:d}/'
+            self.external_address = f"[{self.hostname}]:{self.web_server_port}"
+        else:
+            self.urlbase = f'http://{self.hostname}:{self.web_server_port:d}/'
+            self.external_address = ':'.join(
+                (self.hostname, str(self.web_server_port))
+            )
         # self.renew_service_subscription_loop = \
         #     task.LoopingCall(self.check_devices)
         # self.renew_service_subscription_loop.start(20.0, now=False)
@@ -738,8 +750,8 @@ class Coherence(EventDispatcher, log.LogAble):
 
         # Control Point Initialization
         if (
-            self.config.get('controlpoint', 'no') == 'yes'
-            or self.config.get('json', 'no') == 'yes'
+                self.config.get('controlpoint', 'no') == 'yes'
+                or self.config.get('json', 'no') == 'yes'
         ):
             self.ctrl = ControlPoint(self)
 
@@ -1022,7 +1034,7 @@ class Coherence(EventDispatcher, log.LogAble):
         self.info(f'creating {infos["ST"]} {infos["USN"]}')
         if infos['ST'] == 'upnp:rootdevice':
             self.info(f'creating upnp:rootdevice  {infos["USN"]}')
-            root = RootDevice(infos)
+            root = RootDevice(infos, ipv6=self.use_ipv6)
             root.bind(root_detection_completed=self.add_device)
         else:
             self.info(f'creating device/service  {infos["USN"]}')
@@ -1092,8 +1104,8 @@ class Coherence(EventDispatcher, log.LogAble):
                 f'We need a signal in order to use method {method}'
             )
         if not (
-            signal.startswith('Coherence.UPnP.Device.')
-            or signal.startswith('Coherence.UPnP.RootDevice.')
+                signal.startswith('Coherence.UPnP.Device.')
+                or signal.startswith('Coherence.UPnP.RootDevice.')
         ):
             raise Exception(
                 'We need a signal an old signal starting with: '

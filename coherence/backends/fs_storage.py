@@ -129,15 +129,15 @@ class FSItem(BackendItem):
     logCategory = 'fs_item'
 
     def __init__(
-        self,
-        object_id,
-        parent,
-        path,
-        mimetype,
-        urlbase,
-        UPnPClass,
-        update=False,
-        store=None,
+            self,
+            object_id,
+            parent,
+            path,
+            mimetype,
+            urlbase,
+            UPnPClass,
+            update=False,
+            store=None,
     ):
         BackendItem.__init__(self)
         self.id = object_id
@@ -177,8 +177,8 @@ class FSItem(BackendItem):
             # self.item.searchable = True
             # self.item.searchClass = 'object'
             if (
-                isinstance(self.location, FilePath)
-                and self.location.isdir() is True
+                    isinstance(self.location, FilePath)
+                    and self.location.isdir() is True
             ):
                 self.check_for_cover_art()
                 if getattr(self, 'cover', None):
@@ -201,8 +201,14 @@ class FSItem(BackendItem):
                     )
 
             _, host_port, _, _, _ = urlsplit(urlbase)
+            is_host_ipv6addr = False
             if host_port.find(':') != -1:
-                host, port = tuple(host_port.split(':'))
+                if "]" in host_port:  # ipv6 address enclosed in square brackets
+                    host, port = tuple(host_port.split(']:'))
+                    host = host.replace("[", "")
+                    is_host_ipv6addr = True
+                else:
+                    host, port = tuple(host_port.split(':'))
             else:
                 host = host_port
 
@@ -212,16 +218,16 @@ class FSItem(BackendItem):
                 size = 0
 
             if (
-                self.store.server
-                and self.store.server.coherence.config.get('transcoding', 'no')
-                == 'yes'
+                    self.store.server
+                    and self.store.server.coherence.config.get('transcoding', 'no')
+                    == 'yes'
             ):
                 if self.mimetype in (
-                    'application/ogg',
-                    'audio/ogg',
-                    'audio/x-wav',
-                    'audio/x-m4a',
-                    'application/x-flac',
+                        'application/ogg',
+                        'audio/ogg',
+                        'audio/x-wav',
+                        'audio/x-m4a',
+                        'application/x-flac',
                 ):
                     new_res = Resource(
                         self.url + '/transcoded.mp3',
@@ -231,9 +237,12 @@ class FSItem(BackendItem):
                     # self.item.res.append(new_res)
 
             if mimetype != 'item':
+                tmp_host = host
+                if is_host_ipv6addr:
+                    tmp_host = f"[{host}]"
                 res = Resource(
                     'file://' + quote(self.get_path(), encoding='utf-8'),
-                    f'internal:{host}:{self.mimetype}:*',
+                    f'internal:{tmp_host}:{self.mimetype}:*',
                 )
                 res.size = size
                 self.item.res.append(res)
@@ -263,18 +272,18 @@ class FSItem(BackendItem):
             '''
 
             if (
-                self.store.server
-                and self.store.server.coherence.config.get('transcoding', 'no')
-                == 'yes'
+                    self.store.server
+                    and self.store.server.coherence.config.get('transcoding', 'no')
+                    == 'yes'
             ):
                 if self.mimetype in (
-                    'audio/mpeg',
-                    'application/ogg',
-                    'audio/ogg',
-                    'audio/x-wav',
-                    'audio/x-m4a',
-                    'audio/flac',
-                    'application/x-flac',
+                        'audio/mpeg',
+                        'application/ogg',
+                        'audio/ogg',
+                        'audio/x-wav',
+                        'audio/x-m4a',
+                        'audio/flac',
+                        'application/x-flac',
                 ):
                     dlna_pn = 'DLNA.ORG_PN=LPCM'
                     dlna_tags = simple_dlna_tags[:]
@@ -401,14 +410,23 @@ class FSItem(BackendItem):
             )
 
         _, host_port, _, _, _ = urlsplit(urlbase)
+        is_host_ipv6addr = False
         if host_port.find(':') != -1:
-            host, port = tuple(host_port.split(':'))
+            if "]" in host_port:  # ipv6 address enclosed in square brackets
+                host, port = tuple(host_port.split(']:'))
+                host = host.replace("[", "")
+                is_host_ipv6addr = True
+            else:
+                host, port = tuple(host_port.split(':'))
         else:
             host = host_port
 
+        tmp_host = host
+        if is_host_ipv6addr:
+            tmp_host = f"[{host}]"
         res = Resource(
             'file://' + quote(self.get_path()),
-            f'internal:{host}:{self.mimetype}:*',
+            f'internal:{tmp_host}:{self.mimetype}:*',
         )
         try:
             res.size = self.location.getsize()
@@ -558,10 +576,10 @@ class FSItem(BackendItem):
 
     def __repr__(self):
         return (
-            'id: '
-            + str(self.id)
-            + ' @ '
-            + str(self.get_name().encode('ascii', 'xmlcharrefreplace'))
+                'id: '
+                + str(self.id)
+                + ' @ '
+                + str(self.get_name().encode('ascii', 'xmlcharrefreplace'))
         )
 
 
@@ -583,7 +601,7 @@ class FSStore(BackendStore):
             'type': 'string',
             'default': 'my media',
             'help': 'the name under this MediaServer '
-            'shall show up with on other UPnP clients',
+                    'shall show up with on other UPnP clients',
         },
         {
             'option': 'version',
@@ -597,7 +615,7 @@ class FSStore(BackendStore):
             'option': 'uuid',
             'type': 'string',
             'help': 'the unique (UPnP) identifier for this MediaServer,'
-            ' usually automatically set',
+                    ' usually automatically set',
             'level': 'advance',
         },
         {
@@ -627,7 +645,7 @@ class FSStore(BackendStore):
             'option': 'import_folder',
             'type': 'string',
             'help': 'The path to store files imported via an UPnP method, '
-            'if empty the Import method is disabled',
+                    'if empty the Import method is disabled',
         },
     ]
 
@@ -684,9 +702,9 @@ class FSStore(BackendStore):
         parent = None
         self.update_id = 0
         if (
-            len(self.content) > 1
-            or utils.means_true(kwargs.get('create_root', False))
-            or self.import_folder is not None
+                len(self.content) > 1
+                or utils.means_true(kwargs.get('create_root', False))
+                or self.import_folder is not None
         ):
             UPnPClass = classChooser('root')
             id = str(self.getnextID())
@@ -927,11 +945,11 @@ class FSStore(BackendStore):
             if mimetype == 'directory':
                 if self.inotify is not None:
                     mask = (
-                        IN_CREATE
-                        | IN_DELETE
-                        | IN_MOVED_FROM
-                        | IN_MOVED_TO
-                        | IN_CHANGED
+                            IN_CREATE
+                            | IN_DELETE
+                            | IN_MOVED_FROM
+                            | IN_MOVED_TO
+                            | IN_CHANGED
                     )
                     self.inotify.watch(
                         FilePath(os.path.abspath(path)),
@@ -1088,6 +1106,7 @@ class FSStore(BackendStore):
                     # '=01700000000000000000000000000000',
                 ],
                 default=True,
+                ipv6=self.server.coherence.use_ipv6
             )
             self.server.content_directory_server.set_variable(
                 0, 'SystemUpdateID', self.update_id
@@ -1181,10 +1200,10 @@ class FSStore(BackendStore):
         if item.parentID == 'DLNA.ORG_AnyContainer':
             item.parentID = ContainerID
         if (
-            item.id != ''
-            or item.parentID != ContainerID
-            or item.restricted is True
-            or item.title == ''
+                item.id != ''
+                or item.parentID != ContainerID
+                or item.restricted is True
+                or item.title == ''
         ):
             return failure.Failure(errorCode(712))
 
@@ -1204,11 +1223,11 @@ class FSStore(BackendStore):
 
             if self.inotify is not None:
                 mask = (
-                    IN_CREATE
-                    | IN_DELETE
-                    | IN_MOVED_FROM
-                    | IN_MOVED_TO
-                    | IN_CHANGED
+                        IN_CREATE
+                        | IN_DELETE
+                        | IN_MOVED_FROM
+                        | IN_MOVED_TO
+                        | IN_CHANGED
                 )
                 self.inotify.watch(
                     path,

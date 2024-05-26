@@ -251,7 +251,7 @@ def parse_http_response(data):
     return cmd, headers
 
 
-def get_ip_address(ifname):
+def get_ip_address(ifname, ipv6=False):
     '''
     Determine the IP address by interface name
 
@@ -275,6 +275,18 @@ def get_ip_address(ifname):
         if ifname in netifaces.interfaces():
             iface = netifaces.ifaddresses(ifname)
             ifaceadr = iface[netifaces.AF_INET]
+
+            # ipv6 get addr
+            if ipv6:
+                ifaceadr = iface[netifaces.AF_INET6]
+
+                # search for link local addresses
+                for addr in ifaceadr:
+                    if addr['addr'].startswith("fd"):
+                        return addr['addr']
+
+                raise ValueError("IPv6 mode without ULA address is currently not possible")
+
             # we now have a list of address dictionaries,
             # there may be multiple addresses bound
             return ifaceadr[0]['addr']
@@ -800,7 +812,7 @@ class BufferFile(static.File):
             # This is a request for partial data...
             bytesrange = range.split('=')
             assert (
-                bytesrange[0] == 'bytes'
+                    bytesrange[0] == 'bytes'
             ), 'Syntactically invalid http range header!'
             start, end = bytesrange[1].split('-', 1)
             if start:

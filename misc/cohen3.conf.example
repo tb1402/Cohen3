@@ -2,40 +2,44 @@
 #
 # keywords are case-sensitive
 
-logmode = warning                         # none, error, warning, info, debug, log
+logmode = debug                         # none, error, warning, info, debug, log
 #logfile = coherence.log
-#interface = eth0
+interface = enp3s0f3u2u4
 serverport = 30020                       # if not specified or set to 0
                                          # coherence will let the OS choose the port
-
+ipv6=1
 [subsystem_log]
-#coherence = info
+#coherence = debug
 #WebUI = info
-#SSDP = info
-#MSEARCH = info
+SSDP = debug
+MSEARCH = error
 #SOAP = info
 #Action = info
 #Variable = info
 #Event = info
 #Service_Server = info
-#Service_Client = info
-#Device = info
-#Connection_Manager_Server = info
-#MediaServer= info
+#Service_Client = error
+Device = info
+Connection_Manager_Server = error
+#MediaServer= error
 #MediaRenderer= log
 #ControlPoint = info
 #MS_Client = info
 #flickr_storage = info
 #Buzztard=info
 #twitch_store=debug
-
+utils=debug
+fs_item=debug
+fs_store=debug
+FsStore=debug
+FsItem=debug
 
 [plugins]
-    #[[FSStore]]
-    #    content = tests/content/audio,tests/content/video           # append more directories separated by commas
+    [[FSStore]]
+         content = /home/tobi/tmp/f           # append more directories separated by commas
     #    version = 1
     #    #content = /data/audio/music
-    #    name = Coherence Test Content
+         name = Coherence Test Contentmj
     #    [[[icon]]]
     #        mimetype = image/png
     #        width = 120

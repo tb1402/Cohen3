@@ -75,11 +75,11 @@ class ConnectionManagerServer(service.ServiceServer, resource.Resource):
         self.remove_lingering_connections_loop.stop()
 
     def add_connection(
-        self,
-        RemoteProtocolInfo,
-        Direction,
-        PeerConnectionID,
-        PeerConnectionManager,
+            self,
+            RemoteProtocolInfo,
+            Direction,
+            PeerConnectionID,
+            PeerConnectionManager,
     ):
 
         id = self.next_connection_id
@@ -222,17 +222,31 @@ class ConnectionManagerServer(service.ServiceServer, resource.Resource):
         </html>'''
         return html.encode('ascii')
 
-    def set_variable(self, instance, variable_name, value, default=False):
+    def set_variable(self, instance, variable_name, value, default=False, ipv6=False):
         if (
-            variable_name == 'SourceProtocolInfo'
-            or variable_name == 'SinkProtocolInfo'
+                variable_name == 'SourceProtocolInfo'
+                or variable_name == 'SinkProtocolInfo'
         ):
             if isinstance(value, str) and len(value) > 0:
                 value = [v.strip() for v in value.split(',')]
             without_dlna_tags = []
+
+            def convert_value(v):
+                if ipv6:
+                    sp = v.split(":")
+                    return f"{sp[0]}!{':'.join(sp[1:-2])}!{sp[-2]}!{sp[-1]}"
+                else:
+                    return v.replace(":", "!")
+
+            val_rep = []
+            for v in value:
+                val_rep.append(convert_value(v))
+
+            value = val_rep
+
             for v in value:
                 protocol, network, content_format, additional_info = v.split(
-                    ':'
+                    '!'
                 )
                 if additional_info == '*':
                     without_dlna_tags.append(v)
@@ -240,18 +254,21 @@ class ConnectionManagerServer(service.ServiceServer, resource.Resource):
             def with_some_tag_already_there(protocolinfo):
                 (
                     protocol, network, content_format, additional_info,
-                ) = protocolinfo.split(':')
+                ) = protocolinfo.split('!')
                 for v in value:
+                    if "!" not in v:
+                        v = convert_value(v)
+
                     (
                         v_protocol,
                         v_network,
                         v_content_format,
                         v_additional_info,
-                    ) = v.split(':')
+                    ) = v.split('!')
                     if (protocol, network, content_format) == (
-                        v_protocol,
-                        v_network,
-                        v_content_format,
+                            v_protocol,
+                            v_network,
+                            v_content_format,
                     ) and v_additional_info != '*':
                         return True
                 return False
@@ -260,7 +277,7 @@ class ConnectionManagerServer(service.ServiceServer, resource.Resource):
                 if not with_some_tag_already_there(w):
                     (
                         protocol, network, content_format, additional_info,
-                    ) = w.split(':')
+                    ) = w.split('!')
                     if variable_name == 'SinkProtocolInfo':
                         extra_info = build_dlna_additional_info(
                             content_format,
@@ -287,8 +304,8 @@ class ConnectionManagerServer(service.ServiceServer, resource.Resource):
         '''
         Direction = kwargs['Direction']
         if (
-            self.device.device_type == 'MediaRenderer'
-            and Direction == 'Output'
+                self.device.device_type == 'MediaRenderer'
+                and Direction == 'Output'
         ):
             return failure.Failure(errorCode(702))
         if self.device.device_type == 'MediaServer' and Direction != 'Input':
@@ -329,21 +346,21 @@ class ConnectionManagerServer(service.ServiceServer, resource.Resource):
             )
             # print(local_protocol,local_network,local_content_format)
             if (
-                (
-                    remote_protocol == local_protocol
-                    or remote_protocol == '*'
-                    or local_protocol == '*'
-                )
-                and (
+                    (
+                            remote_protocol == local_protocol
+                            or remote_protocol == '*'
+                            or local_protocol == '*'
+                    )
+                    and (
                     remote_network == local_network
                     or remote_network == '*'
                     or local_network == '*'
-                )
-                and (
+            )
+                    and (
                     remote_content_format == local_content_format
                     or remote_content_format == '*'
                     or local_content_format == '*'
-                )
+            )
             ):
                 connection_id, avt_id, rcs_id = self.add_connection(
                     RemoteProtocolInfo,

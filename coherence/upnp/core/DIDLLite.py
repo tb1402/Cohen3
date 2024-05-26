@@ -233,8 +233,8 @@ class Resources(list):
             # print('remote', remote_protocol,
             #       remote_network,remote_content_format)
             if (
-                protocol_type is not None
-                and remote_protocol.lower() != protocol_type.lower()
+                    protocol_type is not None
+                    and remote_protocol.lower() != protocol_type.lower()
             ):
                 continue
             for protocol_info in local_protocol_infos:
@@ -244,21 +244,21 @@ class Resources(list):
                 # print('local', local_protocol,
                 #       local_network,local_content_format)
                 if (
-                    (
-                        remote_protocol == local_protocol
-                        or remote_protocol == '*'
-                        or local_protocol == '*'
-                    )
-                    and (
+                        (
+                                remote_protocol == local_protocol
+                                or remote_protocol == '*'
+                                or local_protocol == '*'
+                        )
+                        and (
                         remote_network == local_network
                         or remote_network == '*'
                         or local_network == '*'
-                    )
-                    and (
+                )
+                        and (
                         remote_content_format.startswith(local_content_format)
                         or remote_content_format == '*'
                         or local_content_format == '*'
-                    )
+                )
                 ):
                     result.append(res)
         return result
@@ -322,8 +322,8 @@ def build_dlna_additional_info(content_format, does_playcontainer=False):
         content_format = 'video/mpeg'
     if content_format in ['video/mp4', 'video/x-m4a']:
         additional_info = [
-            'DLNA.ORG_PN=AVC_TS_BL_CIF15_AAC'
-        ] + simple_dlna_tags
+                              'DLNA.ORG_PN=AVC_TS_BL_CIF15_AAC'
+                          ] + simple_dlna_tags
     if content_format in ['video/x-msvideo', 'video/avi', 'video/divx']:
         # additional_info = ';'.join(
         #     ['DLNA.ORG_PN=MPEG4_P2_MP4_SP_AAC']+simple_dlna_tags)
@@ -364,27 +364,44 @@ class Resource(object):
         self.importUri = None
 
         if self.protocolInfo is not None:
-            (
-                protocol, network, content_format, additional_info,
-            ) = self.protocolInfo.split(':')
+            ipv6_addr = False
+            if "]" in protocol_info:
+                sp = protocol_info.split(":")
+                protocol = sp[0]
+                network = ':'.join(sp[1:-2]).replace("[", "").replace("]", "")
+                content_format = sp[-2]
+                additional_info = sp[-1]
+                ipv6_addr = True
+            else:
+                (
+                    protocol, network, content_format, additional_info,
+                ) = self.protocolInfo.split(':')
+
             if additional_info == '*':
                 self.protocolInfo = ':'.join(
                     [
                         protocol,
-                        network,
+                        f"[{network}]" if ipv6_addr else network,
                         content_format,
                         build_dlna_additional_info(content_format),
                     ]
                 )
             elif additional_info == '#':
                 self.protocolInfo = ':'.join(
-                    [protocol, network, content_format, '*']
+                    [protocol, f"[{network}]" if ipv6_addr else network, content_format, '*']
                 )
 
     def get_additional_info(self, upnp_client=''):
-        (
-            protocol, network, content_format, additional_info,
-        ) = self.protocolInfo.split(':')
+        if "]" in self.protocolInfo:
+            sp = self.protocolInfo.split(":")
+            protocol = sp[0]
+            network = ':'.join(sp[1:-2]).replace("[", "").replace("]", "")
+            content_format = sp[-2]
+            additional_info = sp[-1]
+        else:
+            (
+                protocol, network, content_format, additional_info,
+            ) = self.protocolInfo.split(':')
         if upnp_client in ('XBox', 'Philips-TV'):
             # we don't need the DLNA tags there,
             # and maybe they irritate these poor things anyway
@@ -418,9 +435,16 @@ class Resource(object):
                 (protocol, network, content_format, additional_info)
             )
         else:
-            (
-                protocol, network, content_format, additional_info,
-            ) = self.protocolInfo.split(':')
+            if "]" in self.protocolInfo:
+                sp = self.protocolInfo.split(":")
+                protocol = sp[0]
+                network = ':'.join(sp[1:-2]).replace("[", "").replace("]", "")
+                content_format = sp[-2]
+                additional_info = sp[-1]
+            else:
+                (
+                    protocol, network, content_format, additional_info,
+                ) = self.protocolInfo.split(':')
             if content_format == 'video/x-msvideo':
                 content_format = 'video/divx'
             additional_info = self.get_additional_info(
@@ -513,15 +537,15 @@ class PlayContainerResource(Resource):
     '''An object representing a DLNA play container resource.'''
 
     def __init__(
-        self,
-        udn,
-        sid='urn:upnp-org:serviceId:ContentDirectory',
-        cid=None,
-        fid=None,
-        fii=0,
-        sc='',
-        md=0,
-        protocol_info=None,
+            self,
+            udn,
+            sid='urn:upnp-org:serviceId:ContentDirectory',
+            cid=None,
+            fid=None,
+            fii=0,
+            sc='',
+            md=0,
+            protocol_info=None,
     ):
 
         Resource.__init__(self)
@@ -541,10 +565,10 @@ class PlayContainerResource(Resource):
         ]
 
         self.data = (
-            'dlna-playcontainer://'
-            + urllib.parse.quote(str(udn))
-            + '?'
-            + '&'.join(args)
+                'dlna-playcontainer://'
+                + urllib.parse.quote(str(udn))
+                + '?'
+                + '&'.join(args)
         )
 
         if self.protocolInfo is None:
@@ -577,12 +601,12 @@ class Object(log.LogAble):
     server_uuid = None
 
     def __init__(
-        self,
-        id=None,
-        parentID=None,
-        title=None,
-        restricted=False,
-        creator=None,
+            self,
+            id=None,
+            parentID=None,
+            title=None,
+            restricted=False,
+            creator=None,
     ):
         log.LogAble.__init__(self)
         self.id = id
@@ -637,8 +661,8 @@ class Object(log.LogAble):
                     )
         elif kwargs.get('parent_container', None):
             if (
-                kwargs.get('parent_container') != '0'
-                and kwargs.get('parent_container') != root.attrib['parentID']
+                    kwargs.get('parent_container') != '0'
+                    and kwargs.get('parent_container') != root.attrib['parentID']
             ):
                 if kwargs.get('upnp_client', '') != 'XBox':
                     root.attrib['refID'] = root.attrib['id']
@@ -666,7 +690,7 @@ class Object(log.LogAble):
         if kwargs.get('upnp_client', '') == 'XBox':
             u = root.find(qname('class', xml_constants.UPNP_NS))
             if kwargs.get(
-                'parent_container', None
+                    'parent_container', None
             ) is not None and u.text.startswith('object.container'):
                 if kwargs.get('parent_container') in ('14', '15', '16'):
                     u.text = 'object.container.storageFolder'
@@ -1111,12 +1135,12 @@ class Container(Object):
     searchable = None
 
     def __init__(
-        self,
-        id=None,
-        parent_id=None,
-        title=None,
-        restricted=False,
-        creator=None,
+            self,
+            id=None,
+            parent_id=None,
+            title=None,
+            restricted=False,
+            creator=None,
     ):
         Object.__init__(self, id, parent_id, title, restricted, creator)
         self.searchClass = []
@@ -1224,11 +1248,11 @@ class DIDLElement(log.LogAble):
     logCategory = 'didllite'
 
     def __init__(
-        self,
-        upnp_client='',
-        parent_container=None,
-        requested_id=None,
-        transcoding=False,
+            self,
+            upnp_client='',
+            parent_container=None,
+            requested_id=None,
+            transcoding=False,
     ):
         log.LogAble.__init__(self)
 

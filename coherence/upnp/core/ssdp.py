@@ -31,6 +31,7 @@ from coherence import log, SERVER_ID
 
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
+SSDP_ADDR6 = 'ff02::c'
 
 
 class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
@@ -60,7 +61,7 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
     root_devices = ListProperty([])
     '''A list of the detected root devices'''
 
-    def __init__(self, test=False, interface=''):
+    def __init__(self, test=False, interface='', ipv6=False):
         '''Initialize the SSDP server.'''
         log.LogAble.__init__(self)
         EventDispatcher.__init__(self)
@@ -70,12 +71,13 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
         self.known = {}
         self._callbacks = {}
         self.test = test
+        self.ipv6 = ipv6
         if not self.test:
             self.port = reactor.listenMulticast(
-                SSDP_PORT, self, listenMultiple=True, interface=interface,
+                SSDP_PORT, self, listenMultiple=True, interface='::' if ipv6 else interface,
             )
 
-            self.port.joinGroup(SSDP_ADDR, interface=interface)
+            self.port.joinGroup(SSDP_ADDR6 if ipv6 else SSDP_ADDR, interface=interface)
 
             self.resend_notify_loop = task.LoopingCall(self.resendNotify)
             self.resend_notify_loop.start(777.0, now=False)
@@ -158,15 +160,15 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
         self.dispatch_event('datagram_received', data, host, port)
 
     def register(
-        self,
-        manifestation,
-        usn,
-        st,
-        location,
-        server=SERVER_ID,
-        cache_control='max-age=1800',
-        silent=False,
-        host=None,
+            self,
+            manifestation,
+            usn,
+            st,
+            location,
+            server=SERVER_ID,
+            cache_control='max-age=1800',
+            silent=False,
+            host=None,
     ):
         '''Register a service or device that this SSDP server will
         respond to.'''
@@ -318,7 +320,7 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
 
         resp = [
             'NOTIFY * HTTP/1.1',
-            f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
+            f'HOST: [{SSDP_ADDR6}]:{SSDP_PORT}' if self.ipv6 else f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
             'NTS: ssdp:alive',
         ]
         stcpy = dict(iter(self.known[usn].items()))
@@ -343,7 +345,7 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
             except Exception as er:
                 self.error(f'Cannot initialize transport: {er}')
         try:
-            self.transport.write(r, (SSDP_ADDR, SSDP_PORT))
+            self.transport.write(r, (SSDP_ADDR6 if self.ipv6 else SSDP_ADDR, SSDP_PORT))
         except (AttributeError, socket.error) as msg:
             self.info(f'failure sending out alive notification: {msg}')
 
@@ -354,7 +356,7 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
 
         resp = [
             'NOTIFY * HTTP/1.1',
-            f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
+            f'HOST: [{SSDP_ADDR6}]:{SSDP_PORT}' if self.ipv6 else f'HOST: {SSDP_ADDR}:{SSDP_PORT}',
             'NTS: ssdp:byebye',
         ]
         try:
@@ -377,7 +379,7 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
                 self.transport = proto_helpers.FakeDatagramTransport()
                 self.makeConnection(self.transport)
             try:
-                self.transport.write(r, (SSDP_ADDR, SSDP_PORT))
+                self.transport.write(r, (SSDP_ADDR6 if self.ipv6 else SSDP_ADDR, SSDP_PORT))
             except (AttributeError, socket.error) as msg:
                 self.info(f'failure sending out byebye notification: {msg}')
         except KeyError as msg:
