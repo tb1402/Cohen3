@@ -173,6 +173,11 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
         '''Register a service or device that this SSDP server will
         respond to.'''
 
+        # in ipv6 mode and no ipv6 address given
+        if self.ipv6 and ":" not in host:
+            self.info(f"IPV6-mode: Skipping registration of IPv4 device {st} ({location})")
+            return
+
         self.info(f'Registering {st} ({location}) -> {manifestation}')
         self.debug(f'\t-searching usn: {usn}')
 
