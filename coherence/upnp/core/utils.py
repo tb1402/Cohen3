@@ -274,7 +274,6 @@ def get_ip_address(ifname, ipv6=False):
     if have_netifaces:
         if ifname in netifaces.interfaces():
             iface = netifaces.ifaddresses(ifname)
-            ifaceadr = iface[netifaces.AF_INET]
 
             # ipv6 get addr
             if ipv6:
@@ -286,10 +285,12 @@ def get_ip_address(ifname, ipv6=False):
                         return addr['addr']
 
                 raise ValueError("IPv6 mode without ULA address is currently not possible")
+            else:
+                ifaceadr = iface[netifaces.AF_INET]
 
-            # we now have a list of address dictionaries,
-            # there may be multiple addresses bound
-            return ifaceadr[0]['addr']
+                # we now have a list of address dictionaries,
+                # there may be multiple addresses bound
+                return ifaceadr[0]['addr']
     import sys
 
     if sys.platform in ('win32', 'sunos5'):
