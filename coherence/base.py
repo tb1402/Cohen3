@@ -1034,7 +1034,7 @@ class Coherence(EventDispatcher, log.LogAble):
         self.info(f'creating {infos["ST"]} {infos["USN"]}')
         if infos['ST'] == 'upnp:rootdevice':
             self.info(f'creating upnp:rootdevice  {infos["USN"]}')
-            root = RootDevice(infos, ipv6=self.use_ipv6)
+            root = RootDevice(infos)
             root.bind(root_detection_completed=self.add_device)
         else:
             self.info(f'creating device/service  {infos["USN"]}')
