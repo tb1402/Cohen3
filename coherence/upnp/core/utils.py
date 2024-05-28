@@ -279,7 +279,7 @@ def get_ip_address(ifname, ipv6=False):
             if ipv6:
                 ifaceadr = iface[netifaces.AF_INET6]
 
-                # search for link local addresses
+                # search for ULA addresses
                 for addr in ifaceadr:
                     if addr['addr'].startswith("fd"):
                         return addr['addr']
@@ -291,6 +291,10 @@ def get_ip_address(ifname, ipv6=False):
                 # we now have a list of address dictionaries,
                 # there may be multiple addresses bound
                 return ifaceadr[0]['addr']
+
+    if ipv6:
+        raise RuntimeError("IPv6 support is currently only available if 'netifaces' is installed")
+
     import sys
 
     if sys.platform in ('win32', 'sunos5'):

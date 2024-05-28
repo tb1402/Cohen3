@@ -31,7 +31,7 @@ from coherence import log, SERVER_ID
 
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
-SSDP_ADDR6 = 'ff02::c'
+SSDP_ADDR6 = 'ff05::c'
 
 
 class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
@@ -286,6 +286,10 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
         self.dispatch_event(
             'log', 'SSDP', host, f'M-Search for {headers["st"]}',
         )
+
+        if self.ipv6 and SSDP_ADDR6 not in str(headers["host"]).strip().lower():
+            self.info(f"Ignoring recovery for host {host} as multicast group doesn't match: {headers['host']} vs {SSDP_ADDR6}")
+            return
 
         # Do we know about this service?
         for i in list(self.known.values()):
