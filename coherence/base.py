@@ -197,6 +197,7 @@ class WebServer(log.LogAble):
         log.LogAble.__init__(self)
         self.site = Site(SimpleRoot(coherence))
 
+        self.ipv6 = ipv6
         if ipv6:
             self.endpoint = endpoints.TCP6ServerEndpoint(reactor, port)
         else:
@@ -210,9 +211,15 @@ class WebServer(log.LogAble):
         def set_listen_port(p):
             self.endpoint_port = p
             coherence.web_server_port = port
+            hostname = coherence.hostname
+
+            # hostname is most likely an ipv6 address
+            if self.ipv6 and ":" in hostname:
+                hostname = f"[{hostname}]"
+
             self.warning(
                 f'WebServer on ip '
-                + f'http://{coherence.hostname}:{coherence.web_server_port}'
+                + f'http://{hostname}:{coherence.web_server_port}'
                 + f' ready'
             )
 
@@ -524,6 +531,7 @@ class Coherence(EventDispatcher, log.LogAble):
 
         # ipv6 conf option
         self.use_ipv6 = True if int(config.get('ipv6', 0)) == 1 else False
+        self.info("IPv6 mode on")
 
         self.setup_hostname()
         if self.hostname.startswith('127.'):

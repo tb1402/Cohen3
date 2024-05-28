@@ -175,7 +175,7 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
 
         # in ipv6 mode and no ipv6 address given
         if self.ipv6 and ":" not in host:
-            self.info(f"IPV6-mode: Skipping registration of IPv4 device {st} ({location})")
+            self.info(f"IPv6 mode: Skipping registration of IPv4 device {st} ({location})")
             return
 
         self.info(f'Registering {st} ({location}) -> {manifestation}')
