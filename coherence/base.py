@@ -526,6 +526,7 @@ class Coherence(EventDispatcher, log.LogAble):
         self.external_address = None
         self.urlbase = None
         self.web_server_port = int(config.get('serverport', 8080))
+        self.interface = self.config.get('interface')
 
         self.setup_logger()
 
@@ -621,10 +622,12 @@ class Coherence(EventDispatcher, log.LogAble):
 
         .. note:: If something goes wrong will default to `127.0.0.1`
         '''
-        network_if = self.config.get('interface')
-        if network_if:
-            self.hostname = get_ip_address(f'{network_if}', ipv6=self.use_ipv6)
+
+        if self.interface:
+            self.hostname = get_ip_address(f'{self.interface}', ipv6=self.use_ipv6)
         else:
+            if self.use_ipv6:
+                raise NotImplementedError("IPv6 with automatic interface detection is not possible, set the interface option in config please")
             try:
                 self.hostname = socket.gethostbyname(socket.gethostname())
             except socket.gaierror:
@@ -644,8 +647,13 @@ class Coherence(EventDispatcher, log.LogAble):
     def setup_ssdp_server(self):
         '''Initialize the :class:`~coherence.upnp.core.ssdp.SSDPServer`.'''
         try:
-            # TODO: add ip/interface bind
-            self.ssdp_server = SSDPServer(test=self.is_unittest, ipv6=self.use_ipv6)
+            # TODO: add ip/interface bind for ipv4
+
+            # use interface binding for ipv6 only
+            # I did no tests with IPv4, as I don't need it
+            bind_iface = self.interface if self.use_ipv6 and self.interface is not None else ''
+
+            self.ssdp_server = SSDPServer(test=self.is_unittest, interface=bind_iface, ipv6=self.use_ipv6)
         except CannotListenError as err:
             self.error(f'Error starting the SSDP-server: {err}')
             self.debug('Error starting the SSDP-server', exc_info=True)

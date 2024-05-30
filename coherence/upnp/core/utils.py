@@ -284,16 +284,18 @@ def get_ip_address(ifname, ipv6=False):
                     if addr['addr'].startswith("fd"):
                         return addr['addr']
 
-                raise ValueError("IPv6 mode without ULA address is currently not possible")
+                raise ValueError("IPv6 mode without an ULA address is currently not possible")
             else:
                 ifaceadr = iface[netifaces.AF_INET]
 
                 # we now have a list of address dictionaries,
                 # there may be multiple addresses bound
                 return ifaceadr[0]['addr']
+        else:
+            raise ValueError(f"No interface for name {ifname} found")
 
     if ipv6:
-        raise RuntimeError("IPv6 support is currently only available if 'netifaces' is installed")
+        raise NotImplementedError("IPv6 support is currently only available if 'netifaces' is installed")
 
     import sys
 

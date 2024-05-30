@@ -18,6 +18,7 @@ import random
 import socket
 import time
 
+import twisted.internet.threads
 from twisted.internet import reactor
 from twisted.internet import task
 from twisted.internet.protocol import DatagramProtocol
@@ -31,6 +32,11 @@ from coherence import log, SERVER_ID
 
 SSDP_PORT = 1900
 SSDP_ADDR = '239.255.255.250'
+
+# use the IPv6 site-local group for SSDP
+# the link-local ff02::c would also be possible, but during implementation
+# link-local addresses caused some trouble, now they are only used when needed
+# also site-local multicast can be reached from link-local, ULA and global addresses
 SSDP_ADDR6 = 'ff05::c'
 
 
@@ -73,11 +79,59 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
         self.test = test
         self.ipv6 = ipv6
         if not self.test:
+            # listen on IPv6 started with :: (see twisted UDP docs)
             self.port = reactor.listenMulticast(
-                SSDP_PORT, self, listenMultiple=True, interface='::' if ipv6 else interface,
+                SSDP_PORT, self, listenMultiple=True, interface=('::' if ipv6 else interface),
             )
 
             self.port.joinGroup(SSDP_ADDR6 if ipv6 else SSDP_ADDR, interface=interface)
+            if self.ipv6:
+                # although the above call to joinGroup accepts IPv6 addresses , no IPv6 groups can be joined
+                # but that's currently a twisted limitation
+                # to join the group nevertheless, a second "dummy" socket is created alongside the twisted stuff
+                # as the second socket binds on the same port and can actually join the group, twisted sees all datat too
+
+                import struct
+                import socket
+                # create a new udp socket
+                s = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
+
+                # allow reuse is required, as the "dummy" and twisted socket are all within this program
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
+                # get the link-local address for the listing interface
+                import netifaces
+                iface = netifaces.ifaddresses(interface)
+                addresses = iface[netifaces.AF_INET6]
+                ll_addr = None
+                for address in addresses:
+                    if address['addr'].startswith("fe80"):
+                        ll_addr = address['addr']
+                        break
+
+                if ll_addr is None:
+                    raise ValueError(f"The interface {interface} has no IPv6 link-local address, cannot continue without it")
+
+                # netifaces returns the link-local address with a %interface scope qualifier which isn't accepted by bind
+                # the struct returned by getaddrinfo holds a tuple with the address, scope_id etc. which can directly be used with bind
+                socket_addr = socket.getaddrinfo(ll_addr, SSDP_PORT, socket.AF_INET6, socket.SOCK_DGRAM, socket.SOL_UDP)[0][4]
+                s.bind(socket_addr)
+
+                # during testing the wrong interface was used sometimes
+                # set the given interface as the outgoing interface for multicast packets on the socket
+                # (just to be sure that the multicast group subscription is done on the given interface)
+                if_index = socket.if_nametoindex(interface)
+                s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_MULTICAST_IF, if_index)
+
+                # join the multicast group on the given interface
+                group_bin = socket.inet_pton(socket.AF_INET6, SSDP_ADDR6)
+                mreq = group_bin + struct.pack('@I', if_index)
+                s.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_JOIN_GROUP, mreq)
+
+                # start a listen thread which only listens for data (and discards it)
+                # required to keep the dummy socket alive and to stay in the multicast group
+                self.dummy_socket = s
+                twisted.internet.threads.deferToThread(f=self.listen_dummy)
 
             self.resend_notify_loop = task.LoopingCall(self.resendNotify)
             self.resend_notify_loop.start(777.0, now=False)
@@ -86,6 +140,18 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
             self.check_valid_loop.start(333.0, now=False)
 
         self.active_calls = []
+
+    def listen_dummy(self):
+        """
+        Listen on the dummy interface and discard any received data
+        :return:
+        """
+        while self.dummy_socket is not None:
+            data, sender = self.dummy_socket.recvfrom(1024)
+
+            # sender will be None if the shutdown method is called on the socket
+            if sender is None:
+                break
 
     def shutdown(self):
         '''Shutdowns the server :class:`SSDPServer` and sends out
@@ -101,6 +167,17 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
             for st in self.known:
                 if self.known[st]['MANIFESTATION'] == 'local':
                     self.doByebye(st)
+
+            # close the dummy socket when using IPv6
+            if self.ipv6:
+                # sometimes a "transport endpoint not connected" error is thrown,
+                # but it's the shutdown and exit phase, so it doesn't really matter
+                try:
+                    self.dummy_socket.shutdown(socket.SHUT_RD)
+                except OSError:
+                    pass
+                self.dummy_socket.close()
+                self.dummy_socket = None
 
     def datagramReceived(self, data, xxx_todo_changeme):
         '''Handle a received multicast datagram.'''
@@ -270,6 +347,13 @@ class SSDPServer(EventDispatcher, DatagramProtocol, log.LogAble):
             f'{delay} for {usn} to {destination}'
         )
         try:
+            # If some clients (e.g. android) insist on only using link-local addresses for multicast
+            # the twisted socket will currently not give them the correct response, as it's not bound to a link-local address
+            # (twisted on link-local address caused other issues during implementation)
+            # Fortunately the dummy socket is bound on a link-local address on the given interface and, as UDP is stateless,
+            # the response can just be delivered from the dummy socket
+            if self.ipv6 and destination[0].startswith("fe80"):
+                self.dummy_socket.sendto(to_bytes(response), destination)
             self.transport.write(to_bytes(response), destination)
         except (AttributeError, socket.error) as msg:
             self.exception(f'failure sending out datagram: {msg}')
