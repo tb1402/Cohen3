@@ -69,6 +69,33 @@ Coherence project.
    :height: 12.5 em
    :width: 12.5 em
 
+
+Changes in this fork
+--------------------
+Background: I'm trying to run an IPv6 only network alongside my LAN and
+transition as many devices as possible. In the IPv4 world I'm using MiniDLNA
+as media server, but that just won't work for IPv6 (and many other DLNA servers,
+such as Cohen3, also currently support IPv4 only). But some clients like
+VLC Player, at least the desktop version, already support IPv6 DLNA. So I
+searched for a simple DLNA server which could be modified easily and found Cohen3.
+
+This fork now supports IPv6, but with some limitations:
+
+- the interface to listen on needs to be specified in config
+- netifaces package is required
+- ipv6=1 must be set in config
+- an ULA address must be present on the listen interface
+- if IPv6 is activated no IPv4 clients will be served, it's either v6 or v4 but not both
+
+As I implemented IPv6 with personal use in mind, I only modified the file storage
+backend (I do not need the others) and other necessary components to get
+it working for my needs. That's why the limitations are there and why I won't
+contribute back to upstream for now.
+
+I don't have time (for now) to modify other backends and properly test everything,
+but feel to do so if you like IPv6 too.
+
+
 Features
 --------
 The original `Coherence Framework` were know to work with different kind of
